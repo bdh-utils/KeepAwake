@@ -1,0 +1,64 @@
+name: Release
+
+on:
+  push:
+    branches: [master, main]
+    tags: ['v*']
+  pull_request:
+    branches: [master, main]
+
+permissions:
+  contents: write
+
+jobs:
+  test:
+    # WPF is Windows-only, so tests must run on a Windows runner.
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Restore
+        run: dotnet restore KeepAwake.sln
+      - name: Build
+        run: dotnet build KeepAwake.sln -c Release --no-restore
+      - name: Test
+        run: dotnet test KeepAwake.sln -c Release --no-build --verbosity normal
+
+  release:
+    needs: test
+    if: startsWith(github.ref, 'refs/tags/v')
+    # WPF publish must run on Windows.
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Publish (self-contained, single-file, win-x64)
+        run: >
+          dotnet publish KeepAwake/KeepAwake.csproj
+          -c Release
+          -r win-x64
+          --self-contained true
+          -p:PublishSingleFile=true
+          -o publish
+      - name: Package release artifact
+        shell: pwsh
+        run: |
+          $tag = $env:GITHUB_REF_NAME
+          $zip = "KeepAwake-$tag-win-x64.zip"
+          Compress-Archive -Path publish/* -DestinationPath $zip -Force
+          "ASSET=$zip" | Out-File -FilePath $env:GITHUB_ENV -Append
+      - name: Create GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        shell: pwsh
+        run: >
+          gh release create "$env:GITHUB_REF_NAME"
+          "$env:ASSET"
+          --generate-notes
+          --title "$env:GITHUB_REF_NAME"
