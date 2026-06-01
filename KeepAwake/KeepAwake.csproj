@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>KeepAwake</RootNamespace>
+    <AssemblyName>KeepAwake</AssemblyName>
+    <UseWPF>true</UseWPF>
+    <!-- Enables System.Windows.Forms.NotifyIcon for the system tray. -->
+    <UseWindowsForms>true</UseWindowsForms>
+    <ApplicationIcon>Resources\KeepAwake.ico</ApplicationIcon>
+    <AssemblyTitle>KeepAwake</AssemblyTitle>
+    <Product>KeepAwake</Product>
+    <Company>bdh-utils</Company>
+    <Version>1.0.0</Version>
+    <Copyright>© 2026 bdh-utils</Copyright>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Bundled with the app so the tray/window icon is available at runtime. -->
+    <Resource Include="Resources\KeepAwake.ico" />
+  </ItemGroup>
+
+</Project>
