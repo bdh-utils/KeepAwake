@@ -17,6 +17,9 @@ gets out of your way.
     overridden by policy.
 - **Live switching** — change method or the keep-display-on option while
   running and it takes effect immediately.
+- **Remembers your settings** — method, keep-display-on, and wiggle interval
+  are saved to `%AppData%\bdh-utils\KeepAwake\settings.json` and restored on
+  the next launch.
 - **System tray** — closing the window minimises to the tray rather than
   quitting. Right-click the tray icon to start/stop, open, or exit.
 - **Brand-themed UI** — styled to the bdh-utils palette, with an About page.

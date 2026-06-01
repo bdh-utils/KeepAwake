@@ -23,6 +23,7 @@ namespace KeepAwake
         private const int DefaultWiggleSeconds = 30;
 
         private readonly KeepAwakeController _controller = new(new Win32SystemActivity());
+        private readonly ISettingsStore _settingsStore = new JsonSettingsStore();
         private readonly DispatcherTimer _wiggleTimer;
 
         private Forms.NotifyIcon? _trayIcon;
@@ -49,9 +50,19 @@ namespace KeepAwake
             LoadIcon();
             SetupTrayIcon();
 
-            // Sync the controller with the initial UI state, then let the
-            // handlers start reacting to user changes.
-            _controller.SetKeepDisplayOn(DisplayCheck.IsChecked == true);
+            // Reflect saved preferences into the UI. The change handlers are
+            // gated on _initialized, so these assignments don't trigger saves.
+            var settings = _settingsStore.Load();
+            ExecutionStateRadio.IsChecked = settings.Mode == KeepAwakeMode.ExecutionState;
+            MouseWiggleRadio.IsChecked = settings.Mode == KeepAwakeMode.MouseWiggle;
+            DisplayCheck.IsChecked = settings.KeepDisplayOn;
+            WiggleIntervalBox.Text = settings.WiggleIntervalSeconds
+                .ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+            // Sync the controller with the loaded state, then let the handlers
+            // start reacting to (and persisting) user changes.
+            _controller.SetMode(settings.Mode);
+            _controller.SetKeepDisplayOn(settings.KeepDisplayOn);
             _initialized = true;
 
             bool executionMode = _controller.Mode == KeepAwakeMode.ExecutionState;
@@ -259,6 +270,7 @@ namespace KeepAwake
             UpdateOptionHint();
             UpdateWiggleTimer();
             UpdateStatusUi();
+            SaveSettings();
         }
 
         private void DisplayCheck_Changed(object sender, RoutedEventArgs e)
@@ -267,6 +279,7 @@ namespace KeepAwake
 
             _controller.SetKeepDisplayOn(DisplayCheck.IsChecked == true);
             UpdateStatusUi();
+            SaveSettings();
         }
 
         private void WiggleInterval_TextChanged(object sender, TextChangedEventArgs e)
@@ -286,6 +299,20 @@ namespace KeepAwake
             // or out-of-range entry doesn't linger on screen.
             WiggleIntervalBox.Text = ((int)_wiggleTimer.Interval.TotalSeconds)
                 .ToString(System.Globalization.CultureInfo.InvariantCulture);
+            SaveSettings();
+        }
+
+        /// <summary>Persist the current preferences. No-op until loaded.</summary>
+        private void SaveSettings()
+        {
+            if (!_initialized) return;
+
+            _settingsStore.Save(new AppSettings
+            {
+                Mode = _controller.Mode,
+                KeepDisplayOn = _controller.KeepDisplayOn,
+                WiggleIntervalSeconds = (int)_wiggleTimer.Interval.TotalSeconds
+            });
         }
 
         /// <summary>
