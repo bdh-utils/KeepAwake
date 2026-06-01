@@ -1,9 +1,10 @@
 using System;
 using System.ComponentModel;
-using System.Runtime.InteropServices;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
+using System.Windows.Threading;
 using Drawing = System.Drawing;
 using Forms = System.Windows.Forms;
 
@@ -11,22 +12,35 @@ namespace KeepAwake
 {
     /// <summary>
     /// Interaction logic for MainWindow.xaml.
-    /// Keeps the PC awake via SetThreadExecutionState, and lives in the system
-    /// tray when the window is closed.
+    /// Thin UI shell over <see cref="KeepAwakeController"/>: it owns the tray
+    /// icon, the mouse-wiggle timer, and reflects controller state into the UI.
     /// </summary>
     public partial class MainWindow : Window
     {
+        // Sensible bounds for the user-configurable wiggle interval (seconds).
+        private const int MinWiggleSeconds = 5;
+        private const int MaxWiggleSeconds = 3600;
+        private const int DefaultWiggleSeconds = 30;
+
+        private readonly KeepAwakeController _controller = new(new Win32SystemActivity());
+        private readonly DispatcherTimer _wiggleTimer;
+
         private Forms.NotifyIcon? _trayIcon;
         private Drawing.Icon? _appIcon;
 
-        private bool _keepDisplayOn = true;
-        private bool _isRunning;
+        private bool _initialized;
         private bool _reallyExiting;
         private bool _trayTipShown;
 
         public MainWindow()
         {
             InitializeComponent();
+
+            // Interval comes from the UI (defaulting to DefaultWiggleSeconds);
+            // comfortably under the shortest practical idle timeout.
+            _wiggleTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(DefaultWiggleSeconds) };
+            _wiggleTimer.Tick += (_, _) => _controller.Tick();
+
             Loaded += MainWindow_Loaded;
         }
 
@@ -34,7 +48,17 @@ namespace KeepAwake
         {
             LoadIcon();
             SetupTrayIcon();
-            _keepDisplayOn = DisplayCheck.IsChecked == true;
+
+            // Sync the controller with the initial UI state, then let the
+            // handlers start reacting to user changes.
+            _controller.SetKeepDisplayOn(DisplayCheck.IsChecked == true);
+            _initialized = true;
+
+            bool executionMode = _controller.Mode == KeepAwakeMode.ExecutionState;
+            DisplayCheck.IsEnabled = executionMode;
+            WiggleIntervalBox.IsEnabled = !executionMode;
+            ApplyWiggleInterval();
+            UpdateOptionHint();
             UpdateStatusUi();
         }
 
@@ -67,7 +91,7 @@ namespace KeepAwake
             var toggleItem = new Forms.ToolStripMenuItem("Start");
             toggleItem.Click += (_, _) =>
             {
-                if (_isRunning) StopKeepAwake(); else StartKeepAwake();
+                if (_controller.IsRunning) StopKeepAwake(); else StartKeepAwake();
             };
             menu.Items.Add(toggleItem);
 
@@ -82,7 +106,7 @@ namespace KeepAwake
             menu.Items.Add(exitItem);
 
             // Keep the toggle label in sync each time the menu opens.
-            menu.Opening += (_, _) => toggleItem.Text = _isRunning ? "Stop" : "Start";
+            menu.Opening += (_, _) => toggleItem.Text = _controller.IsRunning ? "Stop" : "Start";
 
             _trayIcon = new Forms.NotifyIcon
             {
@@ -98,48 +122,45 @@ namespace KeepAwake
 
         private void StartKeepAwake()
         {
-            if (_isRunning) return;
-            _isRunning = true;
-            ApplyExecutionState();
+            _controller.Start();
+            UpdateWiggleTimer();
             UpdateStatusUi();
         }
 
         private void StopKeepAwake()
         {
-            if (!_isRunning) return;
-            _isRunning = false;
-            // Drop the requirement so the PC may sleep again.
-            SetThreadExecutionState(EXECUTION_STATE.ES_CONTINUOUS);
+            _controller.Stop();
+            UpdateWiggleTimer();
             UpdateStatusUi();
         }
 
-        /// <summary>
-        /// Tells Windows to keep the system (and optionally the display) awake
-        /// until we clear the requirement. ES_CONTINUOUS makes the request
-        /// persist on this thread rather than being a one-shot reset.
-        /// </summary>
-        private void ApplyExecutionState()
+        /// <summary>Run the wiggle timer only while actively wiggling.</summary>
+        private void UpdateWiggleTimer()
         {
-            var flags = EXECUTION_STATE.ES_CONTINUOUS | EXECUTION_STATE.ES_SYSTEM_REQUIRED;
-            if (_keepDisplayOn)
+            if (_controller.IsRunning && _controller.Mode == KeepAwakeMode.MouseWiggle)
             {
-                flags |= EXECUTION_STATE.ES_DISPLAY_REQUIRED;
+                _wiggleTimer.Start();
             }
-            SetThreadExecutionState(flags);
+            else
+            {
+                _wiggleTimer.Stop();
+            }
         }
 
         // ---- UI helpers ---------------------------------------------------
 
         private void UpdateStatusUi()
         {
-            StartButton.IsEnabled = !_isRunning;
-            StopButton.IsEnabled = _isRunning;
+            StartButton.IsEnabled = !_controller.IsRunning;
+            StopButton.IsEnabled = _controller.IsRunning;
 
-            if (_isRunning)
+            if (_controller.IsRunning)
             {
                 // Active state uses the brand accent (bdh-utils #F15025).
                 StatusDot.Fill = (System.Windows.Media.Brush)FindResource("BrandAccent");
-                StatusText.Text = _keepDisplayOn ? "Running — display kept on" : "Running";
+                StatusText.Text = _controller.Mode == KeepAwakeMode.MouseWiggle
+                    ? "Running — wiggling the mouse"
+                    : (_controller.KeepDisplayOn ? "Running — display kept on" : "Running");
                 if (_trayIcon != null) _trayIcon.Text = "KeepAwake — Running";
             }
             else
@@ -149,6 +170,13 @@ namespace KeepAwake
                 StatusText.Text = "Stopped";
                 if (_trayIcon != null) _trayIcon.Text = "KeepAwake — Stopped";
             }
+        }
+
+        private void UpdateOptionHint()
+        {
+            OptionHint.Text = MouseWiggleRadio.IsChecked == true
+                ? "Nudges the cursor a pixel on the interval above so Windows sees activity."
+                : "Prevents the screen from turning off as well as the PC sleeping.";
         }
 
         // ---- Window / tray interaction ------------------------------------
@@ -215,29 +243,62 @@ namespace KeepAwake
             about.ShowDialog();
         }
 
+        private void Method_Changed(object sender, RoutedEventArgs e)
+        {
+            // Radio Checked events fire during XAML init, before the controls
+            // and controller are ready — ignore until Loaded has run.
+            if (!_initialized) return;
+
+            var mode = MouseWiggleRadio.IsChecked == true
+                ? KeepAwakeMode.MouseWiggle
+                : KeepAwakeMode.ExecutionState;
+
+            _controller.SetMode(mode);
+            DisplayCheck.IsEnabled = mode == KeepAwakeMode.ExecutionState;
+            WiggleIntervalBox.IsEnabled = mode == KeepAwakeMode.MouseWiggle;
+            UpdateOptionHint();
+            UpdateWiggleTimer();
+            UpdateStatusUi();
+        }
+
         private void DisplayCheck_Changed(object sender, RoutedEventArgs e)
         {
-            _keepDisplayOn = DisplayCheck.IsChecked == true;
+            if (!_initialized) return;
 
-            // Re-apply immediately so the change takes effect while running.
-            if (_isRunning)
+            _controller.SetKeepDisplayOn(DisplayCheck.IsChecked == true);
+            UpdateStatusUi();
+        }
+
+        private void WiggleInterval_TextChanged(object sender, TextChangedEventArgs e)
+        {
+            if (!_initialized) return;
+
+            // Apply only while the value is a valid in-range number; otherwise
+            // leave the running interval alone until the user finishes typing.
+            ApplyWiggleInterval();
+        }
+
+        private void WiggleInterval_LostFocus(object sender, RoutedEventArgs e)
+        {
+            if (!_initialized) return;
+
+            // Normalise the box to the interval actually in effect, so an empty
+            // or out-of-range entry doesn't linger on screen.
+            WiggleIntervalBox.Text = ((int)_wiggleTimer.Interval.TotalSeconds)
+                .ToString(System.Globalization.CultureInfo.InvariantCulture);
+        }
+
+        /// <summary>
+        /// Parse the interval box and, if it holds a valid in-range value,
+        /// push it to the wiggle timer (clamped to [Min, Max]).
+        /// </summary>
+        private void ApplyWiggleInterval()
+        {
+            if (int.TryParse(WiggleIntervalBox.Text, out int seconds))
             {
-                ApplyExecutionState();
-                UpdateStatusUi();
+                seconds = Math.Clamp(seconds, MinWiggleSeconds, MaxWiggleSeconds);
+                _wiggleTimer.Interval = TimeSpan.FromSeconds(seconds);
             }
         }
-
-        // ---- Win32 interop ------------------------------------------------
-
-        [Flags]
-        private enum EXECUTION_STATE : uint
-        {
-            ES_CONTINUOUS = 0x80000000,
-            ES_SYSTEM_REQUIRED = 0x00000001,
-            ES_DISPLAY_REQUIRED = 0x00000002
-        }
-
-        [DllImport("kernel32.dll")]
-        private static extern EXECUTION_STATE SetThreadExecutionState(EXECUTION_STATE esFlags);
     }
 }

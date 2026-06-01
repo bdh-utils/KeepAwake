@@ -5,8 +5,8 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:KeepAwake"
         mc:Ignorable="d"
-        Title="KeepAwake" Height="360" Width="380"
-        MinHeight="360" MinWidth="380"
+        Title="KeepAwake" Height="480" Width="380"
+        MinHeight="480" MinWidth="380"
         WindowStartupLocation="CenterScreen"
         Background="{StaticResource BrandBg}"
         ResizeMode="CanMinimize">
@@ -67,10 +67,32 @@
 
         <!-- Options -->
         <StackPanel Grid.Row="2" Margin="2,0,0,8">
+            <TextBlock Text="Method" Foreground="{StaticResource BrandText}" FontSize="13"
+                       FontWeight="SemiBold" Margin="0,0,0,6"/>
+            <RadioButton x:Name="ExecutionStateRadio" GroupName="Method"
+                         Content="Block sleep (ask Windows to stay awake)"
+                         Foreground="{StaticResource BrandText}" FontSize="13" IsChecked="True"
+                         Checked="Method_Changed"/>
+            <RadioButton x:Name="MouseWiggleRadio" GroupName="Method"
+                         Content="Wiggle the mouse periodically"
+                         Foreground="{StaticResource BrandText}" FontSize="13" Margin="0,4,0,0"
+                         Checked="Method_Changed"/>
+            <StackPanel Orientation="Horizontal" Margin="22,6,0,0">
+                <TextBlock Text="Wiggle every" Foreground="{StaticResource BrandText}" FontSize="13"
+                           VerticalAlignment="Center"/>
+                <TextBox x:Name="WiggleIntervalBox" Text="30" Width="48" Margin="8,0,8,0" FontSize="13"
+                         TextAlignment="Center" IsEnabled="False"
+                         Background="{StaticResource BrandSurface}" Foreground="{StaticResource BrandText}"
+                         BorderBrush="{StaticResource BrandMuted}" CaretBrush="{StaticResource BrandText}"
+                         MaxLength="4"
+                         TextChanged="WiggleInterval_TextChanged" LostFocus="WiggleInterval_LostFocus"/>
+                <TextBlock Text="seconds" Foreground="{StaticResource BrandText}" FontSize="13"
+                           VerticalAlignment="Center"/>
+            </StackPanel>
             <CheckBox x:Name="DisplayCheck" Content="Keep the display awake too"
-                      Foreground="{StaticResource BrandText}" FontSize="14" IsChecked="True"
+                      Foreground="{StaticResource BrandText}" FontSize="13" IsChecked="True" Margin="0,10,0,0"
                       Checked="DisplayCheck_Changed" Unchecked="DisplayCheck_Changed"/>
-            <TextBlock Text="Prevents the screen from turning off as well as the PC sleeping."
+            <TextBlock x:Name="OptionHint" Text="Prevents the screen from turning off as well as the PC sleeping."
                        Foreground="{StaticResource BrandMuted}" FontSize="11" TextWrapping="Wrap" Margin="0,6,0,0"/>
         </StackPanel>
 
