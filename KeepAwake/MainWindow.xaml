@@ -5,8 +5,8 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:KeepAwake"
         mc:Ignorable="d"
-        Title="KeepAwake" Height="515" Width="380"
-        MinHeight="515" MinWidth="380"
+        Title="KeepAwake" Height="550" Width="380"
+        MinHeight="550" MinWidth="380"
         WindowStartupLocation="CenterScreen"
         Background="{StaticResource BrandBg}"
         ResizeMode="CanMinimize">
@@ -97,6 +97,9 @@
             <CheckBox x:Name="StartupCheck" Content="Run when I sign in to Windows"
                       Foreground="{StaticResource BrandText}" FontSize="13" Margin="0,14,0,0"
                       Checked="StartupCheck_Changed" Unchecked="StartupCheck_Changed"/>
+            <CheckBox x:Name="StartMinimisedCheck" Content="Start minimised to the tray"
+                      Foreground="{StaticResource BrandText}" FontSize="13" Margin="0,8,0,0"
+                      Checked="StartMinimisedCheck_Changed" Unchecked="StartMinimisedCheck_Changed"/>
         </StackPanel>
 
         <!-- Buttons -->

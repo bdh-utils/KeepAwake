@@ -43,11 +43,15 @@ namespace KeepAwake
             // comfortably under the shortest practical idle timeout.
             _wiggleTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(DefaultWiggleSeconds) };
             _wiggleTimer.Tick += (_, _) => _controller.Tick();
-
-            Loaded += MainWindow_Loaded;
         }
 
-        private void MainWindow_Loaded(object sender, RoutedEventArgs e)
+        /// <summary>
+        /// One-time setup driven by <see cref="App"/> at startup. Done here
+        /// rather than on the Loaded event so it still runs when the app starts
+        /// minimised and the window is never shown. Shows the window unless the
+        /// saved preference is to start hidden in the tray.
+        /// </summary>
+        public void Initialize()
         {
             LoadIcon();
             SetupTrayIcon();
@@ -60,6 +64,7 @@ namespace KeepAwake
             DisplayCheck.IsChecked = settings.KeepDisplayOn;
             WiggleIntervalBox.Text = settings.WiggleIntervalSeconds
                 .ToString(System.Globalization.CultureInfo.InvariantCulture);
+            StartMinimisedCheck.IsChecked = settings.StartMinimised;
 
             // The registry is the source of truth for auto-start, so read it
             // directly rather than from the JSON settings.
@@ -77,6 +82,16 @@ namespace KeepAwake
             ApplyWiggleInterval();
             UpdateOptionHint();
             UpdateStatusUi();
+
+            if (settings.StartMinimised)
+            {
+                // Stay hidden in the tray; the icon is the way back in.
+                ShowInTaskbar = false;
+            }
+            else
+            {
+                Show();
+            }
         }
 
         // ---- Icon / tray setup --------------------------------------------
@@ -295,6 +310,13 @@ namespace KeepAwake
             _startup.SetEnabled(StartupCheck.IsChecked == true);
         }
 
+        private void StartMinimisedCheck_Changed(object sender, RoutedEventArgs e)
+        {
+            if (!_initialized) return;
+
+            SaveSettings();
+        }
+
         private void WiggleInterval_TextChanged(object sender, TextChangedEventArgs e)
         {
             if (!_initialized) return;
@@ -324,7 +346,8 @@ namespace KeepAwake
             {
                 Mode = _controller.Mode,
                 KeepDisplayOn = _controller.KeepDisplayOn,
-                WiggleIntervalSeconds = (int)_wiggleTimer.Interval.TotalSeconds
+                WiggleIntervalSeconds = (int)_wiggleTimer.Interval.TotalSeconds,
+                StartMinimised = StartMinimisedCheck.IsChecked == true
             });
         }
 

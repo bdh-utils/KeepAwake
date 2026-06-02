@@ -22,6 +22,8 @@ gets out of your way.
   the next launch.
 - **Run at sign-in** — optionally launch KeepAwake automatically when you sign
   in to Windows (a per-user setting; no admin rights needed).
+- **Start minimised** — optionally start hidden in the system tray, so it can
+  run silently from sign-in without popping up a window.
 - **System tray** — closing the window minimises to the tray rather than
   quitting. Right-click the tray icon to start/stop, open, or exit.
 - **Brand-themed UI** — styled to the bdh-utils palette, with an About page.
