@@ -29,7 +29,8 @@ namespace KeepAwake
         private readonly DispatcherTimer _wiggleTimer;
 
         private Forms.NotifyIcon? _trayIcon;
-        private Drawing.Icon? _appIcon;
+        private Drawing.Icon? _trayIconRunning;
+        private Drawing.Icon? _trayIconStopped;
 
         private bool _initialized;
         private bool _reallyExiting;
@@ -98,17 +99,14 @@ namespace KeepAwake
 
         private void LoadIcon()
         {
+            // Window/taskbar icon (WPF) stays the bundled app icon.
             var uri = new Uri("pack://application:,,,/Resources/KeepAwake.ico", UriKind.Absolute);
-
-            // Window/taskbar icon (WPF).
             Icon = BitmapFrame.Create(uri);
 
-            // Tray icon (WinForms) needs a System.Drawing.Icon.
-            var info = System.Windows.Application.GetResourceStream(uri);
-            if (info != null)
-            {
-                _appIcon = new Drawing.Icon(info.Stream);
-            }
+            // Tray icons are drawn in the bdh-utils palette so they can reflect
+            // running state; render both states once and swap between them.
+            _trayIconRunning = TrayIconRenderer.Create(running: true);
+            _trayIconStopped = TrayIconRenderer.Create(running: false);
         }
 
         private void SetupTrayIcon()
@@ -142,7 +140,7 @@ namespace KeepAwake
 
             _trayIcon = new Forms.NotifyIcon
             {
-                Icon = _appIcon,
+                Icon = _trayIconStopped,
                 Visible = true,
                 Text = "KeepAwake — Stopped",
                 ContextMenuStrip = menu
@@ -193,14 +191,22 @@ namespace KeepAwake
                 StatusText.Text = _controller.Mode == KeepAwakeMode.MouseWiggle
                     ? "Running — wiggling the mouse"
                     : (_controller.KeepDisplayOn ? "Running — display kept on" : "Running");
-                if (_trayIcon != null) _trayIcon.Text = "KeepAwake — Running";
+                if (_trayIcon != null)
+                {
+                    _trayIcon.Text = "KeepAwake — Running";
+                    _trayIcon.Icon = _trayIconRunning;
+                }
             }
             else
             {
                 // Idle state uses the brand muted token (bdh-utils #5A5E5A).
                 StatusDot.Fill = (System.Windows.Media.Brush)FindResource("BrandMuted");
                 StatusText.Text = "Stopped";
-                if (_trayIcon != null) _trayIcon.Text = "KeepAwake — Stopped";
+                if (_trayIcon != null)
+                {
+                    _trayIcon.Text = "KeepAwake — Stopped";
+                    _trayIcon.Icon = _trayIconStopped;
+                }
             }
         }
 
@@ -234,7 +240,8 @@ namespace KeepAwake
                 _trayIcon.Dispose();
                 _trayIcon = null;
             }
-            _appIcon?.Dispose();
+            _trayIconRunning?.Dispose();
+            _trayIconStopped?.Dispose();
 
             System.Windows.Application.Current.Shutdown();
         }
