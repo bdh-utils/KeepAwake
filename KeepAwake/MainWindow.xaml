@@ -5,8 +5,8 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:KeepAwake"
         mc:Ignorable="d"
-        Title="KeepAwake" Height="480" Width="380"
-        MinHeight="480" MinWidth="380"
+        Title="KeepAwake" Height="515" Width="380"
+        MinHeight="515" MinWidth="380"
         WindowStartupLocation="CenterScreen"
         Background="{StaticResource BrandBg}"
         ResizeMode="CanMinimize">
@@ -94,6 +94,9 @@
                       Checked="DisplayCheck_Changed" Unchecked="DisplayCheck_Changed"/>
             <TextBlock x:Name="OptionHint" Text="Prevents the screen from turning off as well as the PC sleeping."
                        Foreground="{StaticResource BrandMuted}" FontSize="11" TextWrapping="Wrap" Margin="0,6,0,0"/>
+            <CheckBox x:Name="StartupCheck" Content="Run when I sign in to Windows"
+                      Foreground="{StaticResource BrandText}" FontSize="13" Margin="0,14,0,0"
+                      Checked="StartupCheck_Changed" Unchecked="StartupCheck_Changed"/>
         </StackPanel>
 
         <!-- Buttons -->

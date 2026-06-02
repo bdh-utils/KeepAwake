@@ -24,6 +24,8 @@ namespace KeepAwake
 
         private readonly KeepAwakeController _controller = new(new Win32SystemActivity());
         private readonly ISettingsStore _settingsStore = new JsonSettingsStore();
+        private readonly IStartupRegistration _startup =
+            new StartupRegistration(new RegistryRunKeyStore(), Environment.ProcessPath ?? string.Empty);
         private readonly DispatcherTimer _wiggleTimer;
 
         private Forms.NotifyIcon? _trayIcon;
@@ -58,6 +60,10 @@ namespace KeepAwake
             DisplayCheck.IsChecked = settings.KeepDisplayOn;
             WiggleIntervalBox.Text = settings.WiggleIntervalSeconds
                 .ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+            // The registry is the source of truth for auto-start, so read it
+            // directly rather than from the JSON settings.
+            StartupCheck.IsChecked = _startup.IsEnabled();
 
             // Sync the controller with the loaded state, then let the handlers
             // start reacting to (and persisting) user changes.
@@ -280,6 +286,13 @@ namespace KeepAwake
             _controller.SetKeepDisplayOn(DisplayCheck.IsChecked == true);
             UpdateStatusUi();
             SaveSettings();
+        }
+
+        private void StartupCheck_Changed(object sender, RoutedEventArgs e)
+        {
+            if (!_initialized) return;
+
+            _startup.SetEnabled(StartupCheck.IsChecked == true);
         }
 
         private void WiggleInterval_TextChanged(object sender, TextChangedEventArgs e)
