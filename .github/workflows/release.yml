@@ -12,53 +12,73 @@ permissions:
 
 jobs:
   test:
-    # WPF is Windows-only, so tests must run on a Windows runner.
+    # net8.0-windows / WPF cannot restore or test on Linux, so run on Windows.
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
         with:
-          dotnet-version: '8.0.x'
+          dotnet-version: '8.0'
       - name: Restore
         run: dotnet restore KeepAwake.sln
-      - name: Build
-        run: dotnet build KeepAwake.sln -c Release --no-restore
       - name: Test
-        run: dotnet test KeepAwake.sln -c Release --no-build --verbosity normal
+        run: dotnet test KeepAwake.sln -c Release --no-restore
 
-  release:
+  build-windows:
     needs: test
     if: startsWith(github.ref, 'refs/tags/v')
-    # WPF publish must run on Windows.
     runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0'
+      - name: Compute version
+        id: ver
+        run: echo "version=$($env:GITHUB_REF_NAME -replace '^v','')" >> $env:GITHUB_OUTPUT
+      - name: Publish single-file exe (self-contained, no loose DLLs)
+        run: >
+          dotnet publish KeepAwake/KeepAwake.csproj -c Release -r win-x64
+          --self-contained true
+          -p:PublishSingleFile=true
+          -p:IncludeNativeLibrariesForSelfExtract=true
+          -p:EnableCompressionInSingleFile=true
+          -p:DebugType=none
+          -p:DebugSymbols=false
+          -p:Version=${{ steps.ver.outputs.version }}
+          -o publish
+      - name: Stage exe for installer
+        run: |
+          New-Item -ItemType Directory -Force dist | Out-Null
+          Copy-Item publish\KeepAwake.exe dist\KeepAwake.exe
+      - name: Build installer
+        run: |
+          choco install innosetup --no-progress -y
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" /DMyAppVersion=${{ steps.ver.outputs.version }} packaging\installer.iss
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows-build
+          path: |
+            dist/KeepAwake.exe
+            dist/installer/*.exe
+          if-no-files-found: error
+
+  release:
+    needs: [test, build-windows]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: actions/setup-dotnet@v4
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
         with:
-          dotnet-version: '8.0.x'
-      - name: Publish (self-contained, single-file, win-x64)
-        run: >
-          dotnet publish KeepAwake/KeepAwake.csproj
-          -c Release
-          -r win-x64
-          --self-contained true
-          -p:PublishSingleFile=true
-          -o publish
-      - name: Package release artifact
-        shell: pwsh
-        run: |
-          $tag = $env:GITHUB_REF_NAME
-          $zip = "KeepAwake-$tag-win-x64.zip"
-          Compress-Archive -Path publish/* -DestinationPath $zip -Force
-          "ASSET=$zip" | Out-File -FilePath $env:GITHUB_ENV -Append
+          path: artifacts
       - name: Create GitHub Release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        shell: pwsh
-        run: >
-          gh release create "$env:GITHUB_REF_NAME"
-          "$env:ASSET"
-          --generate-notes
-          --title "$env:GITHUB_REF_NAME"
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            --generate-notes --title "$GITHUB_REF_NAME" \
+            $(find artifacts -type f \( -name '*.exe' -o -name '*.msi' \))
