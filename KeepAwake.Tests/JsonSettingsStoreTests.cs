@@ -50,6 +50,7 @@ namespace KeepAwake.Tests
             Assert.True(settings.KeepDisplayOn);
             Assert.Equal(30, settings.WiggleIntervalSeconds);
             Assert.False(settings.StartMinimised);
+            Assert.False(settings.StartActive);
         }
 
         // ---- Round-trip ----------------------------------------------------
@@ -63,7 +64,8 @@ namespace KeepAwake.Tests
                 Mode = KeepAwakeMode.MouseWiggle,
                 KeepDisplayOn = false,
                 WiggleIntervalSeconds = 90,
-                StartMinimised = true
+                StartMinimised = true,
+                StartActive = true
             };
 
             store.Save(original);
@@ -73,6 +75,7 @@ namespace KeepAwake.Tests
             Assert.False(loaded.KeepDisplayOn);
             Assert.Equal(90, loaded.WiggleIntervalSeconds);
             Assert.True(loaded.StartMinimised);
+            Assert.True(loaded.StartActive);
         }
 
         [Fact]

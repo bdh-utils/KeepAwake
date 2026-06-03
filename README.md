@@ -24,6 +24,9 @@ gets out of your way.
   in to Windows (a per-user setting; no admin rights needed).
 - **Start minimised** — optionally start hidden in the system tray, so it can
   run silently from sign-in without popping up a window.
+- **Start active** — optionally begin keeping awake automatically the moment
+  the app launches, with no need to click Start. Combine with *Run at sign-in*
+  and *Start minimised* to keep awake silently from boot.
 - **System tray** — closing the window minimises to the tray rather than
   quitting. Right-click the tray icon to start/stop, open, or exit.
 - **Brand-themed UI** — styled to the bdh-utils palette, with an About page.

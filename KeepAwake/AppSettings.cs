@@ -14,5 +14,8 @@ namespace KeepAwake
 
         /// <summary>Start hidden in the system tray rather than showing the window.</summary>
         public bool StartMinimised { get; set; } = false;
+
+        /// <summary>Begin keeping the machine awake automatically when the app launches.</summary>
+        public bool StartActive { get; set; } = false;
     }
 }

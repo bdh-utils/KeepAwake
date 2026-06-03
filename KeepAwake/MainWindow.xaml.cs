@@ -66,6 +66,7 @@ namespace KeepAwake
             WiggleIntervalBox.Text = settings.WiggleIntervalSeconds
                 .ToString(System.Globalization.CultureInfo.InvariantCulture);
             StartMinimisedCheck.IsChecked = settings.StartMinimised;
+            StartActiveCheck.IsChecked = settings.StartActive;
 
             // The registry is the source of truth for auto-start, so read it
             // directly rather than from the JSON settings.
@@ -83,6 +84,13 @@ namespace KeepAwake
             ApplyWiggleInterval();
             UpdateOptionHint();
             UpdateStatusUi();
+
+            // Optionally begin keeping awake straight away (e.g. when launched
+            // at sign-in), so the user doesn't have to click Start.
+            if (settings.StartActive)
+            {
+                StartKeepAwake();
+            }
 
             if (settings.StartMinimised)
             {
@@ -324,6 +332,13 @@ namespace KeepAwake
             SaveSettings();
         }
 
+        private void StartActiveCheck_Changed(object sender, RoutedEventArgs e)
+        {
+            if (!_initialized) return;
+
+            SaveSettings();
+        }
+
         private void WiggleInterval_TextChanged(object sender, TextChangedEventArgs e)
         {
             if (!_initialized) return;
@@ -354,7 +369,8 @@ namespace KeepAwake
                 Mode = _controller.Mode,
                 KeepDisplayOn = _controller.KeepDisplayOn,
                 WiggleIntervalSeconds = (int)_wiggleTimer.Interval.TotalSeconds,
-                StartMinimised = StartMinimisedCheck.IsChecked == true
+                StartMinimised = StartMinimisedCheck.IsChecked == true,
+                StartActive = StartActiveCheck.IsChecked == true
             });
         }
 
