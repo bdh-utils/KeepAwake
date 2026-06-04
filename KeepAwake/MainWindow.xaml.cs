@@ -34,6 +34,7 @@ namespace KeepAwake
 
         private bool _initialized;
         private bool _reallyExiting;
+        private bool _sessionEnding;
         private bool _trayTipShown;
 
         public MainWindow()
@@ -56,6 +57,11 @@ namespace KeepAwake
         {
             LoadIcon();
             SetupTrayIcon();
+
+            // Log off / shut down must trigger a clean exit, not the usual
+            // minimise-to-tray, so the keep-awake request is released and we
+            // never cancel an OS-initiated session-end close.
+            System.Windows.Application.Current.SessionEnding += OnSessionEnding;
 
             // Reflect saved preferences into the UI. The change handlers are
             // gated on _initialized, so these assignments don't trigger saves.
@@ -237,9 +243,9 @@ namespace KeepAwake
             Topmost = false;  // …without staying pinned.
         }
 
-        private void ExitApplication()
+        /// <summary>Release the keep-awake request and dispose tray resources.</summary>
+        private void Cleanup()
         {
-            _reallyExiting = true;
             StopKeepAwake();
 
             if (_trayIcon != null)
@@ -250,15 +256,29 @@ namespace KeepAwake
             }
             _trayIconRunning?.Dispose();
             _trayIconStopped?.Dispose();
+        }
 
+        private void ExitApplication()
+        {
+            _reallyExiting = true;
+            Cleanup();
             System.Windows.Application.Current.Shutdown();
+        }
+
+        private void OnSessionEnding(object sender, SessionEndingCancelEventArgs e)
+        {
+            // The session is ending (log off / shut down). Clean up now so the
+            // keep-awake request is dropped, and flag it so OnClosing exits
+            // instead of trying to cancel the close and minimise to the tray.
+            _sessionEnding = true;
+            Cleanup();
         }
 
         protected override void OnClosing(CancelEventArgs e)
         {
-            // The close button minimises to the tray instead of quitting.
-            if (!_reallyExiting)
+            if (CloseDecision.Decide(_reallyExiting, _sessionEnding) == WindowCloseAction.MinimiseToTray)
             {
+                // The close button minimises to the tray instead of quitting.
                 e.Cancel = true;
                 Hide();
                 ShowInTaskbar = false;
